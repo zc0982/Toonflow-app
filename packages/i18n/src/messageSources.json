@@ -13223,5 +13223,8 @@
   ],
   "使用本机 Orca 的 Claude 账号进行文本对话": [
     "apps/server/src/lib/orcaClaude.ts"
+  ],
+  "本地构建": [
+    "apps/web/src/components/settings/panels/about/index.vue"
   ]
 }

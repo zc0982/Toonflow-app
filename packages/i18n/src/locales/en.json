@@ -4059,5 +4059,6 @@
   "Claude Code 未完成本次生成，请检查本机 Claude Code 的账号状态后重试": "Claude Code did not finish generating. Check the local Claude Code account and try again.",
   "本机 Claude 正在处理其他请求，请稍后重试": "Claude is handling other requests on this computer. Try again shortly.",
   "Claude（Orca 当前账号）": "Claude (current Orca account)",
-  "使用本机 Orca 的 Claude 账号进行文本对话": "Chat with the Claude account managed by Orca on this computer."
+  "使用本机 Orca 的 Claude 账号进行文本对话": "Chat with the Claude account managed by Orca on this computer.",
+  "本地构建": "Local build"
 }

@@ -4059,5 +4059,6 @@
   "Claude Code 未完成本次生成，请检查本机 Claude Code 的账号状态后重试": "Claude Code 未完成本次生成，请检查本机 Claude Code 的账号状态后重试",
   "本机 Claude 正在处理其他请求，请稍后重试": "本机 Claude 正在处理其他请求，请稍后重试",
   "Claude（Orca 当前账号）": "Claude（Orca 当前账号）",
-  "使用本机 Orca 的 Claude 账号进行文本对话": "使用本机 Orca 的 Claude 账号进行文本对话"
+  "使用本机 Orca 的 Claude 账号进行文本对话": "使用本机 Orca 的 Claude 账号进行文本对话",
+  "本地构建": "本地构建"
 }
