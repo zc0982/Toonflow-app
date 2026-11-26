@@ -2,7 +2,9 @@
 
 在「设置 → 文本模型 → 添加供应商 → 内置供应商」中添加「Orca Claude」。在对话输入框下方点击当前模型名称，再展开「模型」下拉框，在「Orca Claude」组选择想用的模型。已添加的供应商会自动显示当前目录。
 
-模型名称和 ID 取自本机 Orca 当前账号下 Claude Code 的模型菜单。辅助进程按账号缓存该目录一分钟。选择具体模型时，Toonflow 只对本次 Claude Code 进程传入 `--model`。选择「Claude（Orca 当前账号）」时沿用该账号的默认设置，已有对话继续可用。旧版或离线辅助进程仅展示默认入口。只有一个已登录的本机账号时自动使用，多个账号时在 Orca 中选择当前账号。
+模型目录取当前 Orca 账号的 Claude Code 模型菜单与 [Claude 最新公开型号](https://platform.claude.com/docs/en/models/overview#latest-models) 的交集。辅助进程按账号缓存目录一分钟。菜单中的系列别名须显示为对应的最新版本，Toonflow 将精确的 [Claude Code 模型 ID](https://code.claude.com/docs/en/model-config) 仅通过本次进程的 `--model` 传入。
+
+旧版型号、系列别名和原先的「Claude（Orca 当前账号）」保留在已有记录中，继续对话前须重新选择。离线时目录为空。更新后须从同版源码启动辅助进程，以读取精确型号目录。只有一个已登录的本机账号时自动使用，多个账号时在 Orca 中选择当前账号。
 
 如果升级前打开的标签页仍显示 API Key 输入框，刷新该标签页即可加载免密钥表单。内置供应商详情接口以同一份公开定义返回模型信息和非空的模块源码，供新旧页面读取。
 
@@ -16,7 +18,7 @@ Toonflow 将当前对话的文本记录发送给这台 Mac 上的辅助进程。
 bun apps/server/scripts/orcaClaudeHost.ts
 ```
 
-辅助进程只监听 `127.0.0.1:43819`，首次运行在 `~/.config/toonflow/orcaClaude/connection.key` 创建本机进程间配对文件。原生运行 Toonflow 时，将服务端环境变量 `TOONFLOW_ORCA_KEY_FILE` 指向这个文件。前端只保存供应商和模型信息。
+辅助进程默认监听 `127.0.0.1:43819`，首次运行在 `~/.config/toonflow/orcaClaude/connection.key` 创建本机进程间配对文件。原生运行 Toonflow 时，将服务端环境变量 `TOONFLOW_ORCA_KEY_FILE` 指向这个文件。若需并行运行两个本地实例，为新增的辅助进程与 Toonflow 服务设置相同的 `TOONFLOW_ORCA_PORT`。前端只保存供应商和模型信息。
 
 ## 已在 Docker 中运行的本地实例
 

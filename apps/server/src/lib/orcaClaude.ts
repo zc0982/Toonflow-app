@@ -1,7 +1,9 @@
 // 本机供应商的设置只保存这份公开目录；登录由 Mac 上的 Orca 和 Claude Code 管理。
+type OrcaClaudeModel = { id: string; label: string; reasoningEfforts: false; contextWindow: number; maxOutputTokens: number };
+
 export const orcaClaudeProvider = {
   id: "orcaClaude", label: "Orca Claude", protocol: "orca-local" as const, apiUrl: "", apiKey: "",
-  models: [{ id: "default", label: "Claude（Orca 当前账号）", reasoningEfforts: false as const, contextWindow: 200000, maxOutputTokens: 32000 }],
+  models: [] as OrcaClaudeModel[],
 };
 
 export const orcaClaudeVendor = {
