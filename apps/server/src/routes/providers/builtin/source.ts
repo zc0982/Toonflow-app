@@ -12,7 +12,9 @@ export default Router().get("/", validateFields(inputSchema.shape, "query"), asy
   const controller = new AbortController();
   res.set("Cache-Control", "no-store");
   if (kind === "language" && id === orcaClaudeProvider.id) {
-    res.json(success({ source: "", provider: orcaClaudeProvider }));
+    // 仍在运行的旧页面要求非空模块源码。用同一份公开定义生成源码，保持模型目录一致。
+    const source = `export default ${JSON.stringify(orcaClaudeProvider, null, 2)};\n`;
+    res.json(success({ source, provider: orcaClaudeProvider }));
     return;
   }
   const abort = () => controller.abort();
