@@ -2,6 +2,7 @@ import { Router } from "express";
 import u from "@/utils";
 import { validateFields } from "@/lib/middleware";
 import { success } from "@/lib/responseFormat";
+import { orcaClaudeProvider } from "@/lib/orcaClaude";
 
 const inputSchema = u.builtinProvider.sourceSchema;
 
@@ -10,6 +11,10 @@ export default Router().get("/", validateFields(inputSchema.shape, "query"), asy
   const { id, kind } = inputSchema.parse(req.query);
   const controller = new AbortController();
   res.set("Cache-Control", "no-store");
+  if (kind === "language" && id === orcaClaudeProvider.id) {
+    res.json(success({ source: "", provider: orcaClaudeProvider }));
+    return;
+  }
   const abort = () => controller.abort();
   res.on("close", abort);
   try {

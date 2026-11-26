@@ -2,6 +2,7 @@ import { Router } from "express";
 import u from "@/utils";
 import { validateFields } from "@/lib/middleware";
 import { success } from "@/lib/responseFormat";
+import { orcaClaudeVendor } from "@/lib/orcaClaude";
 
 const inputSchema = u.builtinProvider.listSchema;
 
@@ -14,7 +15,7 @@ export default Router().get("/", validateFields(inputSchema.shape, "query"), asy
   res.on("close", abort);
   try {
     const data = await u.channel.getChannel().getVendors(kind, { signal: controller.signal });
-    res.json(success(data));
+    res.json(success(kind === "language" ? [...data.filter(item => item.id !== orcaClaudeVendor.id), orcaClaudeVendor] : data));
   } finally { res.off("close", abort); }
 });
 

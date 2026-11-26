@@ -4,6 +4,7 @@ import type { ThinkingLevel } from "@/lib/modelReasoning";
 import { getConfiguredModel } from "@/utils/ai";
 import { currentIdentity } from "@/utils/multiTenant/context";
 import { t } from "@/lib/i18n";
+import { streamOrcaClaude } from "@/utils/ai/orcaClaude";
 
 export async function getAgentModelConfiguration(providerId: string, modelId: string, thinkingLevel?: ThinkingLevel) {
   const configured = await getConfiguredModel(providerId, modelId);
@@ -30,6 +31,7 @@ export async function createAgentModel(providerId: string, modelId: string, thin
   runtime.registerProvider(providerId, {
     api: provider.protocol,
     baseUrl,
+    ...(provider.protocol === "orca-local" ? { streamSimple: streamOrcaClaude } : {}),
     // SDK 将配置头解析为命令或环境变量；转义后仅按用户填写的字面值发送。
     headers: provider.headers && Object.fromEntries(Object.entries(provider.headers).map(([name, value]) => [
       name, value.replace(/\$/g, () => "$$").replace(/^!/, "$!"),
@@ -39,12 +41,12 @@ export async function createAgentModel(providerId: string, modelId: string, thin
       id: model.id, name: model.label, reasoning: configured.thinkingLevel === undefined ? false : model.reasoning, thinkingLevelMap: model.thinkingLevelMap,
       compat: configured.thinkingLevel === undefined ? { ...model.compat, supportsMidConvoEffort: false } : model.compat,
       // ACT: 保留图片输入，由实际供应方判断该模型是否支持。
-      input: ["text", "image"],
+      input: provider.protocol === "orca-local" ? ["text"] : ["text", "image"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: model.contextWindow, maxTokens: model.maxOutputTokens,
     }],
   });
-  if (!provider.apiKey && Object.keys(provider.headers ?? {}).length) {
+  if (provider.protocol === "orca-local" || !provider.apiKey && Object.keys(provider.headers ?? {}).length) {
     // ACT: SDK 配置接口不解析无密钥的附加头鉴权；复用模型定义，仅提供本次配置的原始请求头。
     const registered = runtime.getProvider(providerId)!;
     runtime.registerNativeProvider({

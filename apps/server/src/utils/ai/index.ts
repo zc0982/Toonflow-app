@@ -10,7 +10,9 @@ import { readFile, stat } from "@toonflow/file";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { getReadableFileMimeType } from "@/lib/documentFormats";
 import { readDocument } from "@/utils/documents";
-import { getConfiguredProviders, getModelLimits, getModelReasoning, getProviderBaseUrl, providerSchema } from "@/utils/ai/provider";
+import { getConfiguredProviders, getModelLimits, getModelReasoning, getProviderBaseUrl, localOrcaConfiguration, parseTextProvider, providerSchema } from "@/utils/ai/provider";
+import { isOrcaClaudeProvider } from "@/lib/orcaClaude";
+import { assertOrcaAccess, streamOrcaClaude } from "@/utils/ai/orcaClaude";
 import { modelGateway, requireDirectModelAccess } from "@/utils/multiTenant/gateway";
 import { createBillingUsageTracker } from "@/utils/ai/billingUsage";
 
@@ -20,15 +22,16 @@ export { accountProviderSchema, getAccountProvider, getAccountToken, getConfigur
 export async function getConfiguredModel(providerId: string, modelId: string) {
   const execution = modelGateway.enabled() ? await modelGateway.resolve("text", providerId, modelId) : undefined;
   const resolved = execution?.upstream;
-  const parsed = providerSchema.safeParse(resolved?.provider ?? getConfiguredProviders().find(item => item?.id === providerId));
-  if (!parsed.success) {
+  const saved = resolved?.provider ?? getConfiguredProviders().find(item => item?.id === providerId);
+  const provider = !resolved && isOrcaClaudeProvider(saved) ? localOrcaConfiguration : providerSchema.safeParse(saved).data;
+  if (!provider) {
     const official = providerId.toLowerCase() === "toonflow";
     throw Object.assign(new Error(official ? "请先登录 Toonflow 账号并刷新供应商" : "请先在设置中配置模型供应商"), { status: official ? 401 : 400 });
   }
-  const provider = parsed.data;
+  if (provider.protocol === "orca-local") assertOrcaAccess();
   const model = resolved?.model ?? provider.models.find(item => item.id === modelId);
   if (!model) throw Object.assign(new Error("所选模型不存在，请重新选择"), { status: 400 });
-  const baseUrl = getProviderBaseUrl(provider.apiUrl, provider.protocol);
+  const baseUrl = provider.protocol === "orca-local" ? "orca://local" : getProviderBaseUrl(provider.apiUrl, provider.protocol);
   const upstreamProviderId = execution?.route.providerId ?? providerId;
   const limits = getModelLimits(upstreamProviderId, model);
   return {
@@ -43,9 +46,8 @@ export type ConfiguredModel = Awaited<ReturnType<typeof getConfiguredModel>>;
 export async function listAiModels() {
   if (modelGateway.enabled()) return modelGateway.catalog(["text"]);
   return getConfiguredProviders().flatMap(item => {
-    const parsed = providerSchema.extend({ id: z.string().min(1), label: z.string() }).safeParse(item);
-    if (!parsed.success) return [];
-    const provider = parsed.data;
+    const provider = parseTextProvider(item);
+    if (!provider) return [];
     return provider.models.filter(model => model.id.trim()).map(model => {
       const limits = getModelLimits(provider.id, model);
       return {
@@ -199,6 +201,10 @@ export function streamAi(
     maxTokens: configuredModel.maxOutputTokens,
   };
   const usageTracker = createBillingUsageTracker(provider.protocol);
+  if (provider.protocol === "orca-local") {
+    const stream = streamOrcaClaude({ ...model, provider: configured.publicProviderId }, context, { signal }, references);
+    return Object.assign(stream, { billingUsage: usageTracker.usage, upstreamSubmitted: usageTracker.submitted, upstreamRejected: usageTracker.rejected });
+  }
   const files = createFileTransport({ ...provider, apiUrl: baseUrl }, {
     signal, ...(configured.route ? { fetch: usageTracker.fetch(globalThis.fetch) } : {}),
   });

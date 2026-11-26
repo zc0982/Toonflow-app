@@ -1,0 +1,15 @@
+services:
+  toonflow:
+    image: toonflow-orca-claude:local
+    build: ${TOONFLOW_ORCA_BUILD_CONTEXT:-.}
+    environment:
+      TOONFLOW_ORCA_HOST: host.docker.internal
+      TOONFLOW_ORCA_KEY_FILE: /run/secrets/toonflowOrca
+      TOONFLOW_ORCA_LOCAL_PEER: ${TOONFLOW_ORCA_LOCAL_PEER:?请指定该 Compose 网络的网关地址}
+    volumes:
+      - type: bind
+        source: ${TOONFLOW_ORCA_KEY_FILE:-${HOME}/.config/toonflow/orcaClaude/connection.key}
+        target: /run/secrets/toonflowOrca
+        read_only: true
+        bind:
+          create_host_path: false

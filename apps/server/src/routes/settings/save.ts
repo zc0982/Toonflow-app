@@ -6,6 +6,7 @@ import { success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
 import { t } from "@/lib/i18n";
 import { accountProviderSchema, providerSchema } from "@/utils/ai";
+import { orcaClaudeProvider } from "@/lib/orcaClaude";
 import { nodeToolPermissionsSchema } from "@toonflow/tool-canvas/runtime";
 
 const router = Router();
@@ -14,9 +15,12 @@ let saveQueue = Promise.resolve();
 export default router.put("/", validateFields({ expectedRevision: z.number().int().min(0).max(2147483646).optional(), settings: z.record(z.string(), z.json()).and(z.object({
   agentSystemPrompt: z.string().max(maxSystemPromptLength, { error: () => t`系统提示词不能超过 ${maxSystemPromptLength} 个字符` }).optional(),
   agentNodeTools: nodeToolPermissionsSchema.optional(),
-  customProviders: z.array(providerSchema.extend({
+  customProviders: z.array(z.union([providerSchema.extend({
     id: z.string().min(1).refine(value => value.toLowerCase() !== "toonflow", "toonflow 为账号供应商保留 ID"), label: z.string(),
-  })).optional(),
+  }), z.object({
+    id: z.literal(orcaClaudeProvider.id), protocol: z.literal(orcaClaudeProvider.protocol), apiKey: z.literal(""), apiUrl: z.literal(""),
+    label: z.string(), models: providerSchema.shape.models,
+  })])).optional(),
   toonflowProvider: accountProviderSchema.nullable().optional(),
   network: u.network.networkSchema.optional(),
   multiTenantEnabled: z.boolean().optional(),

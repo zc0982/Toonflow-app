@@ -7,7 +7,8 @@ import type { UserMessage } from "@earendil-works/pi-ai";
 import type { AgentEvent, AgentMention, AgentMessageDelivery, AgentPeerMessage, AgentQueue, AgentQueuedMessage, AgentSubAgent, AgentToolCall } from "@/agent/runtime/types";
 import { agentMentionsSchema } from "@/agent/runtime/mentions";
 import conf from "@/utils/conf";
-import { providerSchema, getModelLimits, getConfiguredProviders } from "@/utils/ai";
+import { getModelLimits, getConfiguredProviders } from "@/utils/ai";
+import { parseTextProvider } from "@/utils/ai/provider";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getReadableFileMimeType } from "@/lib/documentFormats";
 import { thinkingLevels } from "@/lib/modelReasoning";
@@ -592,8 +593,8 @@ export async function getAgentSession(cwd: string, path: string) {
     lastReply?.type === "message" && lastReply.message.role === "assistant"
       ? { provider: lastReply.message.provider, modelId: lastReply.message.model }
       : context.model;
-  const provider = providerSchema.safeParse(getConfiguredProviders().find((item) => item?.id === model?.provider));
-  const configuredModel = provider.success ? provider.data.models.find((item) => item.id === model?.modelId) : undefined;
+  const provider = parseTextProvider(getConfiguredProviders().find((item) => item?.id === model?.provider));
+  const configuredModel = provider?.models.find((item) => item.id === model?.modelId);
   const subAgents = new Map<string, AgentSubAgent>();
   for (const entry of history.getEntries()) {
     if (entry.type !== "custom" || entry.customType !== "toonflowSubAgent") continue;

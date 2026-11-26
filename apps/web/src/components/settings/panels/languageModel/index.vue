@@ -24,7 +24,7 @@
             <el-popconfirm v-if="upgradeVersion(item)" title="升级会用新版替换此供应商的地址、请求头和模型列表，API Key 保留。确定升级？" width="280" confirmButtonText="升级" cancelButtonText="取消" @confirm="upgradeProvider(item)">
               <template #reference><el-button text type="warning" :icon="IconArrowUp" :loading="upgradingId === item.id" :disabled="busy">升级</el-button></template>
             </el-popconfirm>
-            <el-button text :icon="IconEdit" :disabled="busy" @click="openProvider(item)">编辑</el-button>
+            <el-button v-if="!isOrcaClaudeProvider(item)" text :icon="IconEdit" :disabled="busy" @click="openProvider(item)">编辑</el-button>
             <el-popconfirm title="确定删除此供应商及其模型？" confirmButtonText="删除" cancelButtonText="取消" @confirm="deleteProvider(item.id)">
               <template #reference><el-button text type="danger" :icon="IconTrash" :loading="deletingId === item.id" :disabled="busy">删除</el-button></template>
             </el-popconfirm>
@@ -43,6 +43,7 @@
 import { computed, defineAsyncComponent, ref, shallowRef, type Component } from "vue";
 import { ElMessage } from "element-plus";
 import { customProviders, saveSettings, type CustomProvider } from "@/stores/settings";
+import { isOrcaClaudeProvider } from "@toonflow/server/orcaClaude";
 import { IconPlus, IconEdit, IconTrash, IconArrowUp } from "@tabler/icons-vue";
 import { getBuiltinSource, useBuiltinUpgrades, type BuiltinLanguageProvider } from "@/lib/builtinProviders";
 import toonflowProviderCard from "../../toonflowProviderCard.vue";

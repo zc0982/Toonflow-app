@@ -24,19 +24,21 @@
           type="button"
           :title="item.description || item.name"
           :disabled="busy"
-          :aria-pressed="addMode === 'builtin' && selectedProvider === item.id"
+          :aria-label="item.name"
+          :aria-pressed="selectedProvider === item.id"
           @click="selectedProvider = item.id">
-          <modelIcon :model="item.id" :size="18" />
+          <modelIcon :model="item.id === orcaClaudeVendor.id ? 'claude' : item.id" :size="18" />
           <span>{{ item.name }}</span>
         </button>
+        <el-button v-if="listError && selectedProvider === orcaClaudeVendor.id" text @click="listRefresh++">重试在线供应商</el-button>
       </aside>
       <el-scrollbar class="providerDetails">
         <template v-if="!provider && addMode === 'builtin'">
-          <section v-if="listLoading || sourceLoading || listError || sourceError || !vendors.length" class="providerContent" :aria-busy="listLoading || sourceLoading">
-            <el-text v-if="listLoading || sourceLoading" type="info">正在获取…</el-text>
-            <template v-else-if="listError || sourceError">
-              <el-alert :title="listError || sourceError" type="error" :closable="false" showIcon />
-              <el-button @click="listError ? listRefresh++ : sourceRefresh++">重试</el-button>
+          <section v-if="loadingList || sourceLoading || catalogError || sourceError || !vendors.length" class="providerContent" :aria-busy="loadingList || sourceLoading">
+            <el-text v-if="loadingList || sourceLoading" type="info">正在获取…</el-text>
+            <template v-else-if="catalogError || sourceError">
+              <el-alert :title="catalogError || sourceError" type="error" :closable="false" showIcon />
+              <el-button @click="catalogError ? listRefresh++ : sourceRefresh++">重试</el-button>
             </template>
             <el-text v-else type="info">暂无供应商</el-text>
           </section>
@@ -209,6 +211,7 @@ import {
 } from "@tabler/icons-vue";
 import { saveSettings, type CustomProvider, type CustomProviderModel } from "@/stores/settings";
 import { useBuiltinProviders, type BuiltinLanguageProvider } from "@/lib/builtinProviders";
+import { orcaClaudeVendor } from "@toonflow/server/orcaClaude";
 import { modelIcon } from "@toonflow/model-icons";
 import { thinkingLevels, type ThinkingLevel, type ReasoningEfforts } from "@toonflow/server/modelReasoning";
 import addProviderDialog from "./addProviderDialog.vue";
@@ -220,6 +223,8 @@ const { vendors, selectedProvider, activeProvider, listLoading, sourceLoading, l
   "language", () => visible.value && !props.provider && addMode.value === "builtin",
 );
 const builtinForm = ref<InstanceType<typeof addProviderDialog>>();
+const loadingList = computed(() => selectedProvider.value !== orcaClaudeVendor.id && listLoading.value);
+const catalogError = computed(() => selectedProvider.value === orcaClaudeVendor.id ? "" : listError.value);
 const builtinSaving = ref(false);
 const builtinFetching = ref(false);
 const busy = computed(() => saving.value || fetching.value || builtinSaving.value || builtinFetching.value);

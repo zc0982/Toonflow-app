@@ -2,6 +2,7 @@ import { onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import parse from "semver/functions/parse";
 import http from "@/lib/http";
 import type { CustomProvider } from "@/stores/settings";
+import { orcaClaudeVendor } from "@toonflow/server/orcaClaude";
 
 type BuiltinVendor = { id: string; name: string; description: string; updateTime: number; version?: string };
 export type BuiltinLanguageProvider = CustomProvider & {
@@ -13,7 +14,8 @@ export type BuiltinLanguageProvider = CustomProvider & {
 
 export async function getBuiltinSource<T extends { id: string }>(kind: "language" | "media", id: string, signal?: AbortSignal) {
   const data = await http<{ source: string; provider: T }>({ method: "GET", url: "/api/providers/builtin/source", params: { kind, id }, signal });
-  if (!data || typeof data.source !== "string" || !data.source.trim() || data.provider?.id !== id) throw new Error("供应商源码响应格式不正确");
+  const local = kind === "language" && id === orcaClaudeVendor.id;
+  if (!data || typeof data.source !== "string" || (!local && !data.source.trim()) || data.provider?.id !== id) throw new Error("供应商源码响应格式不正确");
   return data;
 }
 
@@ -32,7 +34,7 @@ export function useBuiltinProviders<T extends { id: string }>(kind: "language" |
   watch([enabled, listRefresh], async ([active], _previous, onCleanup) => {
     const controller = new AbortController();
     onCleanup(() => controller.abort());
-    vendors.value = [];
+    vendors.value = active && kind === "language" ? [orcaClaudeVendor] : [];
     selectedProvider.value = "";
     listError.value = "";
     listLoading.value = active;
@@ -42,7 +44,7 @@ export function useBuiltinProviders<T extends { id: string }>(kind: "language" |
       if (controller.signal.aborted) return;
       if (!Array.isArray(data)) throw new Error("供应商列表格式不正确");
       vendors.value = data;
-      selectedProvider.value = data[0]?.id ?? "";
+      if (!data.some(item => item.id === selectedProvider.value)) selectedProvider.value = data[0]?.id ?? "";
     } catch (error) {
       if (!controller.signal.aborted) listError.value = error instanceof Error ? error.message : "获取供应商列表失败";
     } finally {

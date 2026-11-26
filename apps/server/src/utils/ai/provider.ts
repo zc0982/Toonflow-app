@@ -5,6 +5,7 @@ import conf from "@/utils/conf";
 import { findModelContextLimits } from "@/utils/ai/modelContextLimits";
 import { validateHeaderName, validateHeaderValue } from "node:http";
 import { z } from "zod";
+import { isOrcaClaudeProvider, orcaClaudeProvider } from "@/lib/orcaClaude";
 
 export const providerHeadersSchema = z.record(
   z.string().refine(name => {
@@ -52,6 +53,14 @@ export const accountProviderSchema = providerSchema.extend({
   token: z.string().trim().min(1).max(16384).optional(),
   icon: z.string().optional(), version: z.string().optional(),
 });
+
+// 平台供应商继续使用 HTTP 协议校验；本机供应商只采用随应用发布的模型目录。
+type LocalTextProvider = Omit<z.infer<typeof providerSchema>, "protocol"> & { protocol: typeof orcaClaudeProvider.protocol };
+export const localOrcaConfiguration: LocalTextProvider & { id: string; label: string } = orcaClaudeProvider;
+export function parseTextProvider(value: unknown) {
+  if (typeof value === "object" && value && "id" in value && isOrcaClaudeProvider(value)) return localOrcaConfiguration;
+  return providerSchema.extend({ id: z.string().min(1), label: z.string() }).safeParse(value).data;
+}
 
 export function getAccountToken() {
   const account = conf.get("settings", {}).toonflowAccount as { token?: unknown } | null | undefined;

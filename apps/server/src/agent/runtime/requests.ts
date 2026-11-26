@@ -21,7 +21,7 @@ function contentHash(value: unknown) {
 
 export function configureAgentRequests(session: AgentSession, limits?: { maxRequestImageBytes?: number; maxRequestBytes?: number }, runSignal?: AbortSignal, onRetry?: (replyTo?: string) => void) {
   const configured = getRuntimeModelConfiguration(session.modelRuntime);
-  if (configured?.route) session.setAutoRetryEnabled(false);
+  if (configured?.route || configured?.provider.protocol === "orca-local") session.setAutoRetryEnabled(false);
   for (const value of Object.values(limits ?? {})) {
     if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) throw new Error("图片请求预算必须为正安全整数");
   }

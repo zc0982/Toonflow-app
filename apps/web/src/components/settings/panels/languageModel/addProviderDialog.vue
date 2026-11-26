@@ -5,8 +5,11 @@
       <el-tag v-if="activeProvider.version" size="small" type="info" effect="plain">v{{ activeProvider.version }}</el-tag>
     </header>
     <messageMarkdown v-if="providerReadme" class="providerReadme" :content="providerReadme" />
-    <h4 class="sectionTitle">连接配置</h4>
-    <form-create v-model="formValues" v-model:api="formApi" :rule="providerRules" :option="formOptions" />
+    <el-text v-if="localOrca">使用本机 Orca 已登录的 Claude 账号进行文本对话。多个账号时，在 Orca 中选择要使用的账号。</el-text>
+    <template v-else>
+      <h4 class="sectionTitle">连接配置</h4>
+      <form-create v-model="formValues" v-model:api="formApi" :rule="providerRules" :option="formOptions" />
+    </template>
     <div class="modelHeader">
       <el-text tag="strong">模型列表 <el-text type="info">{{ models.length }}</el-text></el-text>
       <el-text v-if="fetching" type="info" size="small">正在获取…</el-text>
@@ -31,6 +34,7 @@ import axios from "axios";
 import { IconRefresh } from "@tabler/icons-vue";
 import formCreate, { copyProviderRules, type Api, type Options } from "@toonflow/provider-web/formCreate";
 import type { BuiltinLanguageProvider } from "@/lib/builtinProviders";
+import { isOrcaClaudeProvider } from "@toonflow/server/orcaClaude";
 import messageMarkdown from "@/components/messageMarkdown.vue";
 import type { Column } from "element-plus";
 import { saveSettings, type CustomProviderModel } from "@/stores/settings";
@@ -55,6 +59,7 @@ watch(() => props.provider, () => {
   formApi.value = undefined;
 }, { flush: "sync" });
 const activeProvider = computed(() => props.provider);
+const localOrca = computed(() => isOrcaClaudeProvider(activeProvider.value));
 const canSubmit = computed(() => !!activeProvider.value && !fetching.value && !modelError.value);
 const providerReadme = computed(() => {
   const provider = activeProvider.value;
@@ -109,18 +114,18 @@ watch(
 onBeforeUnmount(() => { fetching.value = false; });
 
 async function addProvider() {
-  if (saving.value || fetching.value || modelError.value || !activeProvider.value || !formApi.value) return;
+  if (saving.value || fetching.value || modelError.value || !activeProvider.value || (!localOrca.value && !formApi.value)) return;
   formError.value = "";
   const provider = activeProvider.value;
-  const values = formApi.value.formData();
+  const values = formApi.value?.formData() ?? {};
   const apiKey = typeof values.apiKey === "string" ? values.apiKey.trim() : "";
-  if (!apiKey) {
+  if (!localOrca.value && !apiKey) {
     formError.value = "请填写 API Key";
     return;
   }
   saving.value = true;
   try {
-    if (!(await formApi.value.validate().then(() => true, () => false))) return;
+    if (!localOrca.value && !(await formApi.value!.validate().then(() => true, () => false))) return;
     const addedProvider = {
       id: provider.id,
       label: provider.label,
