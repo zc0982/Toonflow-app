@@ -32,14 +32,16 @@ export function getNodeModelKey(model: ModelIdentity) {
   return JSON.stringify([identity.providerId, identity.modelId]);
 }
 
+export function parseNodeModelKey(selection: string) {
+  let value: unknown;
+  try { value = JSON.parse(selection); } catch { return; }
+  if (!Array.isArray(value) || value.length !== 2) return;
+  const [providerId, modelId] = value as unknown[];
+  if (typeof providerId === "string" && providerId && typeof modelId === "string" && modelId) return { providerId, modelId };
+}
+
 export function findNodeModel<T extends ModelIdentity>(models: readonly T[], selection: string | Pick<ModelIdentity, "providerId" | "modelId">): T | undefined {
-  let identity: Pick<ModelIdentity, "providerId" | "modelId">;
-  if (typeof selection === "string") {
-    let value: unknown;
-    try { value = JSON.parse(selection); } catch { return; }
-    if (!Array.isArray(value) || value.length !== 2 || !value.every(item => typeof item === "string")) return;
-    identity = { providerId: value[0], modelId: value[1] };
-  } else identity = selection;
+  const identity = typeof selection === "string" ? parseNodeModelKey(selection) : selection;
   if (!identity || typeof identity.providerId !== "string" || !identity.providerId
     || typeof identity.modelId !== "string" || !identity.modelId) return;
   return models.find(model => model.providerId === identity.providerId && (model.modelId === identity.modelId

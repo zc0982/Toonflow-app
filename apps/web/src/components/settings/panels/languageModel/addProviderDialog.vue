@@ -23,7 +23,7 @@
         </template>
       </el-auto-resizer>
     </div>
-    <el-text v-else-if="!fetching" type="info" size="small">{{ formValues.apiKey ? '未获取到模型' : '填写 API Key 后自动获取模型列表' }}</el-text>
+    <el-text v-else-if="!fetching" type="info" size="small">{{ localOrca || formValues.apiKey ? '未获取到模型' : '填写 API Key 后自动获取模型列表' }}</el-text>
     <el-alert v-if="formError" :title="formError" type="error" :closable="false" showIcon />
   </section>
 </template>

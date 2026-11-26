@@ -11,8 +11,8 @@
       :popperStyle="{ padding: '20px', maxWidth: 'calc(100vw - 24px)' }">
       <template #reference>
         <el-button class="modelButton" text :disabled="disabled" aria-label="模型与思考强度设置">
-          <modelIcon v-if="selectedModelChoice" :model="selectedModelChoice.modelId" :size="14" />
-          <modelLabel class="modelName" :label="selectedModelChoice?.label ?? '选择模型'" :providerId="selectedModelChoice?.providerId" />
+          <modelIcon v-if="selectedIcon" :model="selectedIcon" :size="14" />
+          <modelLabel class="modelName" :label="selectedModelChoice?.label ?? unavailableOrcaModel?.modelId ?? '选择模型'" :providerId="selectedModelChoice?.providerId" :title="unavailableOrcaModel ? '所选模型不存在，请重新选择' : undefined" />
           <template v-if="reasoningLevels.length">
             ·
             <span class="reasoningLabel">{{ reasoningLabel }}</span>
@@ -22,8 +22,8 @@
       </template>
       <el-form class="modelOptions" labelPosition="top">
         <el-form-item label="模型">
-          <el-select :modelValue="selectedModelChoice ? selectedModel : ''" filterable :disabled="disabled" :teleported="false" placeholder="选择模型" aria-label="选择模型" noDataText="请先在设置中添加模型" @update:modelValue="selectedModel = $event" @change="reasoningEffort = ''">
-            <template #prefix><modelIcon v-if="selectedModelChoice" :model="selectedModelChoice.modelId" :size="18" /></template>
+          <el-select :modelValue="selectedModelChoice ? selectedModel : ''" filterable :disabled="disabled" :teleported="false" :placeholder="unavailableOrcaModel ? '所选模型不存在，请重新选择' : '选择模型'" aria-label="选择模型" noDataText="请先在设置中添加模型" @update:modelValue="selectedModel = $event" @change="reasoningEffort = ''">
+            <template #prefix><modelIcon v-if="selectedIcon" :model="selectedIcon" :size="18" /></template>
             <template #label="{ label }"><modelLabel :label="label" :providerId="selectedModelChoice?.providerId" /></template>
             <template v-if="!modelChoices.length && !multiTenantEnabled && !toonflowAccountToken && openSettingsPanel" #empty>
               <modelLoginGuide @login="visible = false" />
@@ -31,7 +31,7 @@
             <el-option-group v-for="provider in modelGroups" :key="provider.id" :label="provider.label">
               <el-option v-for="model in provider.models" :key="model.value" :label="model.label" :value="model.value">
                 <div class="modelOption">
-                  <modelIcon :model="model.modelId" :size="16" />
+                  <modelIcon :model="provider.id === orcaClaudeVendor.id ? provider.id : model.modelId" :size="16" />
                   <modelLabel class="modelOptionLabel" :label="model.label" :providerId="provider.id" />
                 </div>
               </el-option>
@@ -58,9 +58,10 @@
 import { computed, inject, ref, useId, watch } from "vue";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import { modelIcon } from "@toonflow/model-icons";
-import { useNodeModelSelection } from "@toonflow/nodes-scaffold/nodeAi";
+import { parseNodeModelKey, useNodeModelSelection } from "@toonflow/nodes-scaffold/nodeAi";
 import modelLabel from "@toonflow/node-shared/modelLabel";
 import type { ThinkingLevel } from "@toonflow/server/modelReasoning";
+import { orcaClaudeVendor } from "@toonflow/server/orcaClaude";
 import { modelChoices, multiTenantEnabled, refreshModelChoices, toonflowAccountToken } from "@/stores/settings";
 import modelLoginGuide from "./modelLoginGuide.vue";
 
@@ -72,6 +73,13 @@ const openSettingsPanel = inject<(id: string) => void>("openSettingsPanel");
 const reasoningId = useId();
 const reasoningLabels: Record<ThinkingLevel, string> = { off: "关闭", minimal: "最小", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高" };
 const selectedModelChoice = useNodeModelSelection(modelChoices, selectedModel);
+const unavailableOrcaModel = computed(() => {
+  if (selectedModelChoice.value || !selectedModel.value) return;
+  const identity = parseNodeModelKey(selectedModel.value);
+  if (identity?.providerId === orcaClaudeVendor.id) return identity;
+});
+const selectedIcon = computed(() => selectedModelChoice.value?.providerId === orcaClaudeVendor.id || unavailableOrcaModel.value
+  ? orcaClaudeVendor.id : selectedModelChoice.value?.modelId);
 const modelGroups = computed(() => {
   const groups = new Map<string, { id: string; label: string; models: Array<(typeof modelChoices.value)[number]> }>();
   for (const model of modelChoices.value) {

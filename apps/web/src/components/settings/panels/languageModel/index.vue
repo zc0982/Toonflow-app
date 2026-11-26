@@ -4,8 +4,9 @@
       <toonflowProviderCard scope="text" :provider="customProviders.find(item => item.id.toLowerCase() === 'toonflow')" />
       <el-card v-for="item in visibleProviders" :key="item.id" class="providerItem" shadow="never">
         <div class="providerHeader">
-          <div v-if="item.icon" class="providerMark" aria-hidden="true">
-            <img class="providerLogo" :src="item.icon" alt="" />
+          <div v-if="item.icon || isOrcaClaudeProvider(item)" class="providerMark" aria-hidden="true">
+            <modelIcon v-if="isOrcaClaudeProvider(item)" :model="item.id" :size="24" />
+            <img v-else class="providerLogo" :src="item.icon" alt="" />
           </div>
           <div class="providerInfo">
             <div class="providerHeading">
@@ -44,6 +45,7 @@ import { computed, defineAsyncComponent, ref, shallowRef, type Component } from 
 import { ElMessage } from "element-plus";
 import { customProviders, saveSettings, type CustomProvider } from "@/stores/settings";
 import { isOrcaClaudeProvider } from "@toonflow/server/orcaClaude";
+import { modelIcon } from "@toonflow/model-icons";
 import { IconPlus, IconEdit, IconTrash, IconArrowUp } from "@tabler/icons-vue";
 import { getBuiltinSource, useBuiltinUpgrades, type BuiltinLanguageProvider } from "@/lib/builtinProviders";
 import toonflowProviderCard from "../../toonflowProviderCard.vue";

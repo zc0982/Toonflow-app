@@ -5,7 +5,7 @@ import type { RequestHandler } from "express";
 import { isMobileLinkRequest } from "@/utils/mobileLink";
 import { isEnabled as multiTenantEnabled } from "@/utils/multiTenant/mode";
 import { isOrcaClaudeProvider, orcaClaudeProvider } from "@/lib/orcaClaude";
-import { maxOrcaBytes, orcaErrors, orcaEvent, orcaModelList, orcaModelsPath, orcaPort, orcaTextPath } from "@/lib/orcaClaudeProtocol";
+import { latestOrcaClaudeModels, maxOrcaBytes, orcaErrors, orcaEvent, orcaModelList, orcaModelsPath, orcaPort, orcaTextPath } from "@/lib/orcaClaudeProtocol";
 
 const localRequest = new AsyncLocalStorage<{ canGenerate: boolean; catalog?: Promise<typeof orcaClaudeProvider> }>();
 const unavailable = "无法连接本机 Orca 文本服务，请先启动 orcaClaudeHost";
@@ -44,14 +44,17 @@ async function requestHost(path: string, init: RequestInit) {
 async function readCatalog() {
   const response = await requestHost(orcaModelsPath, { signal: AbortSignal.timeout(12000) });
   const models = orcaModelList.parse(await response.json());
-  const base = orcaClaudeProvider.models[0]!;
-  return { ...orcaClaudeProvider, models: [base, ...models.filter(model => model.id !== base.id).map(model => ({ ...base, ...model }))] };
+  return {
+    ...orcaClaudeProvider,
+    models: latestOrcaClaudeModels.filter(({ id }) => models.some(model => model.id === id))
+      .map(({ id, label }) => ({ id, label, reasoningEfforts: false as const, contextWindow: 1000000, maxOutputTokens: 128000 })),
+  };
 }
 
 export function getOrcaClaudeProvider(required = false) {
   const request = localRequest.getStore();
   if (!request || multiTenantEnabled()) return Promise.resolve(orcaClaudeProvider);
-  // 旧版或离线辅助进程继续提供原有的默认模型；同一请求中的设置和模型选择器共用目录。
+  // 离线时不显示不可用的模型；同一请求中的设置和模型选择器共用目录。
   const catalog = request.catalog ??= readCatalog();
   return required ? catalog : catalog.catch(() => orcaClaudeProvider);
 }
@@ -78,7 +81,7 @@ function chatBody(modelId: string, context: Context, references: Reference[]) {
     if (reference.dataType !== "STRING") throw new Error("Orca Claude 当前仅支持文本参考");
     user.text += `\n${reference.value}`;
   }
-  const body = JSON.stringify({ modelId: modelId === "default" ? undefined : modelId, system: context.systemPrompt ?? "", messages });
+  const body = JSON.stringify({ modelId, system: context.systemPrompt ?? "", messages });
   if (Buffer.byteLength(body) > maxOrcaBytes) throw new Error("对话过长，请压缩内容后重试");
   return body;
 }

@@ -7,7 +7,7 @@ import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { chmod, mkdir, readFile, writeFile } from "@toonflow/file";
 import { z } from "zod";
-import { maxOrcaBytes, orcaCatalogModel, orcaEvent, orcaModelsPath, orcaPort, orcaRequest, orcaTextPath, type orcaErrors } from "../src/lib/orcaClaudeProtocol";
+import { latestOrcaClaudeModels, maxOrcaBytes, orcaCatalogModel, orcaEvent, orcaModelsPath, orcaPort, orcaRequest, orcaTextPath, type orcaErrors } from "../src/lib/orcaClaudeProtocol";
 
 const exec = promisify(execFile);
 const keyFile = process.env.TOONFLOW_ORCA_KEY_FILE || join(homedir(), ".config", "toonflow", "orcaClaude", "connection.key");
@@ -70,10 +70,13 @@ async function discoverModels(profileEnv: ClaudeEnvironment) {
     const item = JSON.parse(line);
     if (item.type !== "control_response" || item.response?.request_id !== requestId || item.response.subtype !== "success") continue;
     const models = z.array(z.object({ value: z.string(), displayName: z.string() })).max(512).parse(item.response.response.models);
-    return models.flatMap(model => {
+    const menu = models.flatMap(model => {
       const entry = orcaCatalogModel.safeParse({ id: model.value, label: model.displayName });
       return entry.success ? [entry.data] : [];
     });
+    return latestOrcaClaudeModels.filter(({ id, alias, label }) => menu.some(item =>
+      item.id === id || (item.id === alias && (item.label === label || item.label === `Claude ${label}`)),
+    )).map(({ id, label }) => ({ id, label }));
   }
   throw new HostError("failed");
 }
@@ -92,10 +95,10 @@ function supportedModels(profileEnv: ClaudeEnvironment) {
 
 async function generate({ modelId, ...conversation }: z.infer<typeof orcaRequest>, signal: AbortSignal, send: (event: ChatEvent) => void) {
   const profileEnv = await claudeEnvironment(signal);
-  if (modelId !== "default" && !(await supportedModels(profileEnv)).some(model => model.id === modelId)) throw new HostError("model");
+  if (!(await supportedModels(profileEnv)).some(model => model.id === modelId)) throw new HostError("model");
   signal.throwIfAborted();
   const child = spawn("claude", [
-    ...textFlags, ...(modelId === "default" ? [] : ["--model", modelId]), "--include-partial-messages",
+    ...textFlags, "--model", modelId, "--include-partial-messages",
     "--system-prompt", "你是 Toonflow 的文本助手。输入的 JSON 包含 Toonflow 的 system 设定和按时间排列的 messages。遵循设定和对话上下文，直接回答最后的用户消息。只输出回复正文。你只能生成文本。",
   ], { env: profileEnv, cwd: tmpdir(), stdio: ["pipe", "pipe", "ignore"], signal });
   const ended = new Promise<number | null>(resolve => {

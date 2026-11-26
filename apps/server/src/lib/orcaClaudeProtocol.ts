@@ -1,14 +1,23 @@
 import { z } from "zod";
 
-export const orcaPort = 43819;
+export const orcaPort = Number(process.env.TOONFLOW_ORCA_PORT ?? 43819);
+if (!Number.isInteger(orcaPort) || orcaPort < 1 || orcaPort > 65535) throw new Error("TOONFLOW_ORCA_PORT 必须是 1–65535 之间的整数");
 export const orcaTextPath = "/toonflow/text";
 export const orcaModelsPath = "/toonflow/models";
 export const maxOrcaBytes = 8 * 1024 * 1024;
 const modelId = z.string().max(160).regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*(?:\[1m\])?$/);
 export const orcaCatalogModel = z.object({ id: modelId, label: z.string().trim().min(1).max(200) });
 export const orcaModelList = z.array(orcaCatalogModel).max(512);
+// https://platform.claude.com/docs/en/models/overview
+// Claude Code 菜单也可能返回系列别名。实际调用固定具体版本，避免别名按账号设置解析到旧型号。
+export const latestOrcaClaudeModels = [
+  { id: "claude-opus-5-5", label: "Opus 5.5", alias: "opus" },
+  { id: "claude-sonnet-5-5", label: "Sonnet 5.5", alias: "sonnet" },
+  { id: "claude-haiku-5-5", label: "Haiku 5.5", alias: "haiku" },
+  { id: "claude-fable-5-2", label: "Fable 5.2", alias: "fable" },
+];
 export const orcaRequest = z.strictObject({
-  modelId: modelId.default("default"),
+  modelId,
   system: z.string(),
   messages: z.array(z.strictObject({ role: z.enum(["user", "assistant", "toolResult"]), text: z.string() })).min(1),
 });

@@ -27,7 +27,7 @@
           :aria-label="item.name"
           :aria-pressed="selectedProvider === item.id"
           @click="selectedProvider = item.id">
-          <modelIcon :model="item.id === orcaClaudeVendor.id ? 'claude' : item.id" :size="18" />
+          <modelIcon :model="item.id" :size="18" />
           <span>{{ item.name }}</span>
         </button>
         <el-button v-if="listError && selectedProvider === orcaClaudeVendor.id" text @click="listRefresh++">重试在线供应商</el-button>

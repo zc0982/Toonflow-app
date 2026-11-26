@@ -6,7 +6,7 @@ import { success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
 import { t } from "@/lib/i18n";
 import { accountProviderSchema, providerSchema } from "@/utils/ai";
-import { orcaClaudeProvider } from "@/lib/orcaClaude";
+import { isOrcaClaudeProvider, orcaClaudeProvider } from "@/lib/orcaClaude";
 import { withOrcaClaudeModels } from "@/utils/ai/orcaClaude";
 import { nodeToolPermissionsSchema } from "@toonflow/tool-canvas/runtime";
 
@@ -55,6 +55,14 @@ export default router.put("/", validateFields({ expectedRevision: z.number().int
     u.removeLegacySettings(settings);
     u.cleanNodeMenuSettings(settings);
     const previousSettings = u.conf.get("settings", {});
+    // 读取设置会回显实时目录。保存其他设置时保留已落盘的本机模型记录。
+    if (Array.isArray(settings.customProviders) && Array.isArray(previousSettings.customProviders)) {
+      const savedLocalProvider = previousSettings.customProviders.find(isOrcaClaudeProvider);
+      if (Array.isArray(savedLocalProvider?.models)) {
+        settings.customProviders = settings.customProviders.map((provider: typeof orcaClaudeProvider | z.infer<typeof providerSchema>) =>
+          isOrcaClaudeProvider(provider) ? { ...provider, models: savedLocalProvider.models } : provider);
+      }
+    }
     const previousAccount = previousSettings.toonflowAccount as { token?: unknown } | null | undefined;
     const nextAccount = settings.toonflowAccount as { token?: unknown } | null | undefined;
     if (!nextAccount?.token || nextAccount.token !== previousAccount?.token) settings.toonflowProvider = null;

@@ -10,7 +10,7 @@ import { readFile, stat } from "@toonflow/file";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { getReadableFileMimeType } from "@/lib/documentFormats";
 import { readDocument } from "@/utils/documents";
-import { getConfiguredProviders, getModelLimits, getModelReasoning, getProviderBaseUrl, localOrcaConfiguration, parseTextProvider, providerSchema } from "@/utils/ai/provider";
+import { getConfiguredProviders, getModelLimits, getModelReasoning, getProviderBaseUrl, parseTextProvider, providerSchema, type localOrcaConfiguration } from "@/utils/ai/provider";
 import { isOrcaClaudeProvider } from "@/lib/orcaClaude";
 import { assertOrcaAccess, getOrcaClaudeProvider, streamOrcaClaude } from "@/utils/ai/orcaClaude";
 import { modelGateway, requireDirectModelAccess } from "@/utils/multiTenant/gateway";
@@ -26,7 +26,7 @@ export async function getConfiguredModel(providerId: string, modelId: string) {
   let provider: typeof localOrcaConfiguration | z.infer<typeof providerSchema> | undefined = providerSchema.safeParse(saved).data;
   if (!resolved && isOrcaClaudeProvider(saved)) {
     assertOrcaAccess();
-    provider = modelId === "default" ? localOrcaConfiguration : await getOrcaClaudeProvider(true);
+    provider = await getOrcaClaudeProvider(true);
   }
   if (!provider) {
     const official = providerId.toLowerCase() === "toonflow";
