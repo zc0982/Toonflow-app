@@ -1463,25 +1463,11 @@
     "apps/web/src/components/settings/panels/personalization/index.vue",
     "apps/web/src/components/settings/toonflowProviderCard.vue"
   ],
-  "赞助商": [
-    "apps/web/src/components/settings/panels/about/index.vue"
-  ],
-  "排名不分先后": [
-    "apps/web/src/components/settings/panels/about/index.vue"
-  ],
   "微信扫码洽谈商务合作": [
-    "apps/web/src/components/settings/panels/about/index.vue",
     "apps/web/src/components/settings/panels/multiTenant/developmentNotice.vue"
-  ],
-  "成为赞助商": [
-    "apps/web/src/components/settings/panels/about/index.vue"
   ],
   "Toonflow 商务合作二维码": [
-    "apps/web/src/components/settings/panels/about/index.vue",
     "apps/web/src/components/settings/panels/multiTenant/developmentNotice.vue"
-  ],
-  "查看 {0} 详情": [
-    "apps/web/src/components/settings/panels/about/index.vue"
   ],
   "正在解压并校验更新包": [
     "apps/web/src/components/settings/panels/about/index.vue"
@@ -6273,24 +6259,6 @@
   "放大画布": [
     "apps/web/src/pages/home/pages/explore/exploreProcess.vue"
   ],
-  "距离结束 {0} 天 {1} 小时 {2} 分": [
-    "apps/web/src/pages/home/homeAdvertisement.vue"
-  ],
-  "关闭横幅": [
-    "apps/web/src/pages/home/homeAdvertisement.vue"
-  ],
-  "首页横幅": [
-    "apps/web/src/pages/home/homeAdvertisementCarousel.vue"
-  ],
-  "侧栏内容轮播": [
-    "apps/web/src/pages/home/homeAdvertisementCarousel.vue"
-  ],
-  "播放轮播": [
-    "apps/web/src/pages/home/homeAdvertisementCarousel.vue"
-  ],
-  "暂停轮播": [
-    "apps/web/src/pages/home/homeAdvertisementCarousel.vue"
-  ],
   "首页侧栏": [
     "apps/web/src/pages/home/index.vue"
   ],
@@ -6450,18 +6418,6 @@
   ],
   "从一句话开始，搭建你的创作工作流…": [
     "apps/web/src/pages/home/pages/home/index.vue"
-  ],
-  "当前设备不支持该设置项": [
-    "apps/web/src/pages/home/index.vue"
-  ],
-  "当前版本不支持该页面": [
-    "apps/web/src/pages/home/index.vue"
-  ],
-  "请先打开一个项目": [
-    "apps/web/src/pages/home/index.vue"
-  ],
-  "无法打开页面": [
-    "apps/web/src/pages/home/index.vue"
   ],
   "添加附件失败，请重试": [
     "apps/web/src/pages/home/pages/home/index.vue"
