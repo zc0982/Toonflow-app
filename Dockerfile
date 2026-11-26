@@ -1,22 +1,24 @@
-FROM node:24-bookworm-slim
+FROM oven/bun:1.4.3
 
 WORKDIR /app
 
-RUN npm config set registry https://registry.npmmirror.com/ && \
-    yarn config set registry https://registry.npmmirror.com/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the repository contents into the image and install all dependencies
 COPY . .
 
-# The container only runs the backend dev server, so strip Electron-only
-# packages before installing to avoid downloading desktop binaries.
-RUN node -e "const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));for(const section of ['dependencies','devDependencies']){if(!pkg[section]) continue;for(const name of ['custom-electron-titlebar','electron','electron-builder','electron-rebuild','electronmon']) delete pkg[section][name];}fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2)+'\n');" && \
-    yarn install --frozen-lockfile && \
-    yarn cache clean
+# ACT: 保留工作区与依赖以兼容运行时动态加载；需要缩减镜像时再拆分构建阶段。
+RUN bun install --frozen-lockfile
 
-ENV NODE_ENV=dev
-ENV PORT=10588
+RUN bun run build:server \
+    && mkdir -p data/workspaces/myProject \
+    && chown -R bun:bun data
 
-EXPOSE 10588
+ENV NODE_ENV=production
+ENV TOONFLOW_DATA_DIR=/app/data
 
-CMD ["yarn", "dev"]
+USER bun
+EXPOSE 3000
+
+CMD ["bun", "build/server/index.js"]
