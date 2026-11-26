@@ -594,7 +594,9 @@ export async function getAgentSession(cwd: string, path: string) {
       ? { provider: lastReply.message.provider, modelId: lastReply.message.model }
       : context.model;
   const provider = parseTextProvider(getConfiguredProviders().find((item) => item?.id === model?.provider));
-  const configuredModel = provider?.models.find((item) => item.id === model?.modelId);
+  // 读取历史时，已下架的本机模型仍沿用 Toonflow 的文本上下文配置。
+  const configuredModel = provider?.protocol === "orca-local" && model?.modelId
+    ? { ...provider.models[0]!, id: model.modelId } : provider?.models.find((item) => item.id === model?.modelId);
   const subAgents = new Map<string, AgentSubAgent>();
   for (const entry of history.getEntries()) {
     if (entry.type !== "custom" || entry.customType !== "toonflowSubAgent") continue;

@@ -1,6 +1,7 @@
 import u from "@/utils";
 import { Router } from "express";
 import { success } from "@/lib/responseFormat";
+import { withOrcaClaudeModels } from "@/utils/ai/orcaClaude";
 
 const router = Router();
 
@@ -19,5 +20,5 @@ export default router.get("/", async (req, res) => {
   }
   const removedLegacySettings = u.removeLegacySettings(settings);
   if (u.cleanNodeMenuSettings(settings) || removedLegacySettings) u.conf.set("settings", settings);
-  res.json(success({ ...settings, multiTenantEnabled: u.multiTenant.isEnabled() }));
+  res.json(success({ ...settings, customProviders: await withOrcaClaudeModels(settings.customProviders), multiTenantEnabled: u.multiTenant.isEnabled() }));
 });

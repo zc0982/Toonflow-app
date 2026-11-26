@@ -12,7 +12,7 @@ import { getReadableFileMimeType } from "@/lib/documentFormats";
 import { readDocument } from "@/utils/documents";
 import { getConfiguredProviders, getModelLimits, getModelReasoning, getProviderBaseUrl, localOrcaConfiguration, parseTextProvider, providerSchema } from "@/utils/ai/provider";
 import { isOrcaClaudeProvider } from "@/lib/orcaClaude";
-import { assertOrcaAccess, streamOrcaClaude } from "@/utils/ai/orcaClaude";
+import { assertOrcaAccess, getOrcaClaudeProvider, streamOrcaClaude } from "@/utils/ai/orcaClaude";
 import { modelGateway, requireDirectModelAccess } from "@/utils/multiTenant/gateway";
 import { createBillingUsageTracker } from "@/utils/ai/billingUsage";
 
@@ -23,12 +23,15 @@ export async function getConfiguredModel(providerId: string, modelId: string) {
   const execution = modelGateway.enabled() ? await modelGateway.resolve("text", providerId, modelId) : undefined;
   const resolved = execution?.upstream;
   const saved = resolved?.provider ?? getConfiguredProviders().find(item => item?.id === providerId);
-  const provider = !resolved && isOrcaClaudeProvider(saved) ? localOrcaConfiguration : providerSchema.safeParse(saved).data;
+  let provider: typeof localOrcaConfiguration | z.infer<typeof providerSchema> | undefined = providerSchema.safeParse(saved).data;
+  if (!resolved && isOrcaClaudeProvider(saved)) {
+    assertOrcaAccess();
+    provider = modelId === "default" ? localOrcaConfiguration : await getOrcaClaudeProvider(true);
+  }
   if (!provider) {
     const official = providerId.toLowerCase() === "toonflow";
     throw Object.assign(new Error(official ? "请先登录 Toonflow 账号并刷新供应商" : "请先在设置中配置模型供应商"), { status: official ? 401 : 400 });
   }
-  if (provider.protocol === "orca-local") assertOrcaAccess();
   const model = resolved?.model ?? provider.models.find(item => item.id === modelId);
   if (!model) throw Object.assign(new Error("所选模型不存在，请重新选择"), { status: 400 });
   const baseUrl = provider.protocol === "orca-local" ? "orca://local" : getProviderBaseUrl(provider.apiUrl, provider.protocol);
@@ -45,8 +48,10 @@ export type ConfiguredModel = Awaited<ReturnType<typeof getConfiguredModel>>;
 
 export async function listAiModels() {
   if (modelGateway.enabled()) return modelGateway.catalog(["text"]);
-  return getConfiguredProviders().flatMap(item => {
-    const provider = parseTextProvider(item);
+  const saved = getConfiguredProviders();
+  const local = saved.some(isOrcaClaudeProvider) ? await getOrcaClaudeProvider() : undefined;
+  return saved.flatMap(item => {
+    const provider = parseTextProvider(item, local);
     if (!provider) return [];
     return provider.models.filter(model => model.id.trim()).map(model => {
       const limits = getModelLimits(provider.id, model);

@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type ServerResponse } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
@@ -7,7 +7,7 @@ import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { chmod, mkdir, readFile, writeFile } from "@toonflow/file";
 import { z } from "zod";
-import { maxOrcaBytes, orcaEvent, orcaPort, orcaRequest, orcaTextPath, type orcaErrors } from "../src/lib/orcaClaudeProtocol";
+import { maxOrcaBytes, orcaCatalogModel, orcaEvent, orcaModelsPath, orcaPort, orcaRequest, orcaTextPath, type orcaErrors } from "../src/lib/orcaClaudeProtocol";
 
 const exec = promisify(execFile);
 const keyFile = process.env.TOONFLOW_ORCA_KEY_FILE || join(homedir(), ".config", "toonflow", "orcaClaude", "connection.key");
@@ -52,12 +52,50 @@ async function claudeEnvironment(signal: AbortSignal) {
   return profileEnv;
 }
 
-async function generate(body: z.infer<typeof orcaRequest>, signal: AbortSignal, send: (event: ChatEvent) => void) {
+const textFlags = [
+  "--safe-mode", "-p", "--tools", "", "--permission-mode", "dontAsk", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+  "--disable-slash-commands", "--no-session-persistence", "--output-format", "stream-json", "--verbose",
+];
+type ClaudeEnvironment = Awaited<ReturnType<typeof claudeEnvironment>>;
+async function discoverModels(profileEnv: ClaudeEnvironment) {
+  const requestId = randomUUID();
+  // SDK 的 initialize 回复包含当前账号的模型菜单。只发送控制请求，无需生成文本。
+  const child = exec("claude", [...textFlags, "--input-format", "stream-json"], {
+    env: profileEnv, cwd: tmpdir(), encoding: "utf8", timeout: 10000, maxBuffer: 4 * 1024 * 1024,
+  });
+  child.child.stdin?.on("error", () => {});
+  child.child.stdin?.end(JSON.stringify({ type: "control_request", request_id: requestId, request: { subtype: "initialize" } }) + "\n");
+  const { stdout } = await child;
+  for (const line of stdout.split("\n").filter(Boolean)) {
+    const item = JSON.parse(line);
+    if (item.type !== "control_response" || item.response?.request_id !== requestId || item.response.subtype !== "success") continue;
+    const models = z.array(z.object({ value: z.string(), displayName: z.string() })).max(512).parse(item.response.response.models);
+    return models.flatMap(model => {
+      const entry = orcaCatalogModel.safeParse({ id: model.value, label: model.displayName });
+      return entry.success ? [entry.data] : [];
+    });
+  }
+  throw new HostError("failed");
+}
+
+let catalog: { directory: string; expires: number; models: ReturnType<typeof discoverModels> } | undefined;
+function supportedModels(profileEnv: ClaudeEnvironment) {
+  const directory = profileEnv.CLAUDE_CONFIG_DIR;
+  if (catalog?.directory === directory && catalog.expires > Date.now()) return catalog.models;
+  const models = discoverModels(profileEnv).catch(error => {
+    if (catalog?.models === models) catalog = undefined;
+    throw error;
+  });
+  catalog = { directory, expires: Date.now() + 60_000, models };
+  return models;
+}
+
+async function generate({ modelId, ...conversation }: z.infer<typeof orcaRequest>, signal: AbortSignal, send: (event: ChatEvent) => void) {
   const profileEnv = await claudeEnvironment(signal);
+  if (modelId !== "default" && !(await supportedModels(profileEnv)).some(model => model.id === modelId)) throw new HostError("model");
   signal.throwIfAborted();
   const child = spawn("claude", [
-    "--safe-mode", "-p", "--tools", "", "--permission-mode", "dontAsk", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
-    "--disable-slash-commands", "--no-session-persistence", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
+    ...textFlags, ...(modelId === "default" ? [] : ["--model", modelId]), "--include-partial-messages",
     "--system-prompt", "你是 Toonflow 的文本助手。输入的 JSON 包含 Toonflow 的 system 设定和按时间排列的 messages。遵循设定和对话上下文，直接回答最后的用户消息。只输出回复正文。你只能生成文本。",
   ], { env: profileEnv, cwd: tmpdir(), stdio: ["pipe", "pipe", "ignore"], signal });
   const ended = new Promise<number | null>(resolve => {
@@ -65,7 +103,7 @@ async function generate(body: z.infer<typeof orcaRequest>, signal: AbortSignal, 
     child.once("close", resolve);
   });
   child.stdin.on("error", () => {}); // 启动失败或被取消时，写管道会随子进程一起关闭。
-  child.stdin.end(JSON.stringify(body));
+  child.stdin.end(JSON.stringify(conversation));
   const terminate = () => {
     child.kill("SIGTERM");
     const timer = setTimeout(() => { if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL"); }, 1500);
@@ -105,11 +143,20 @@ async function generate(body: z.infer<typeof orcaRequest>, signal: AbortSignal, 
 let running = 0;
 const server = createServer(async (req, res: ServerResponse) => {
   const auth = Buffer.from(req.headers.authorization ?? "");
-  if (req.method !== "POST" || req.url !== orcaTextPath || req.headers.origin || req.headers["content-type"] !== "application/json"
+  const listModels = req.method === "GET" && req.url === orcaModelsPath;
+  const generateText = req.method === "POST" && req.url === orcaTextPath && req.headers["content-type"] === "application/json";
+  if ((!listModels && !generateText) || req.headers.origin
     || auth.length !== authorization.length || !timingSafeEqual(auth, authorization)) { res.writeHead(403).end(); return; }
   const closed = new AbortController();
   res.once("close", () => closed.abort());
   const signal = AbortSignal.any([closed.signal, AbortSignal.timeout(10 * 60 * 1000)]);
+  if (listModels) {
+    try {
+      const models = await supportedModels(await claudeEnvironment(signal));
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(models));
+    } catch { if (!res.destroyed) res.writeHead(503).end(); }
+    return;
+  }
   const send = (event: ChatEvent) => { if (!res.destroyed) res.write(JSON.stringify(event) + "\n"); };
   if (running >= 4) { res.setHeader("Content-Type", "application/x-ndjson"); send({ type: "error", code: "busy" }); res.end(); return; }
   running++;

@@ -91,8 +91,10 @@ export async function createApp({
   const { initializeMultiTenantRuntime, multiTenantAccess } = await import("@/utils/multiTenant/runtime");
   initializeMultiTenantRuntime(app);
   app.use(multiTenantAccess);
-  const { orcaChatRequest } = await import("@/utils/ai/orcaClaude");
-  app.post(["/api/agent", "/api/ai/generate"], orcaChatRequest);
+  const { orcaLocalRequest } = await import("@/utils/ai/orcaClaude");
+  app.post(["/api/agent", "/api/ai/generate"], orcaLocalRequest);
+  app.get(["/api/ai/models", "/api/providers/builtin/source", "/api/settings/get"], orcaLocalRequest);
+  app.put("/api/settings/save", orcaLocalRequest);
   const { initializePluginServerRuntime } = await import("@/utils/pluginServer");
   initializePluginServerRuntime(app);
   app.use("/api/pluginServer/message", express.json({ limit: "12mb" }));

@@ -4,11 +4,12 @@ import { createAssistantMessageEventStream, type Api, type AssistantMessage, typ
 import type { RequestHandler } from "express";
 import { isMobileLinkRequest } from "@/utils/mobileLink";
 import { isEnabled as multiTenantEnabled } from "@/utils/multiTenant/mode";
-import { maxOrcaBytes, orcaErrors, orcaEvent, orcaPort, orcaTextPath } from "@/lib/orcaClaudeProtocol";
+import { isOrcaClaudeProvider, orcaClaudeProvider } from "@/lib/orcaClaude";
+import { maxOrcaBytes, orcaErrors, orcaEvent, orcaModelList, orcaModelsPath, orcaPort, orcaTextPath } from "@/lib/orcaClaudeProtocol";
 
-const chatAccess = new AsyncLocalStorage<boolean>();
+const localRequest = new AsyncLocalStorage<{ canGenerate: boolean; catalog?: Promise<typeof orcaClaudeProvider> }>();
 const unavailable = "无法连接本机 Orca 文本服务，请先启动 orcaClaudeHost";
-export const orcaChatRequest: RequestHandler = (req, res, next) => {
+export const orcaLocalRequest: RequestHandler = (req, res, next) => {
   const host = req.get("host");
   const origin = req.get("origin") ?? req.get("referer");
   const peer = req.socket.remoteAddress?.replace(/^::ffff:/, "");
@@ -18,17 +19,51 @@ export const orcaChatRequest: RequestHandler = (req, res, next) => {
     && (origin === `${req.protocol}://${host}` || origin?.startsWith(`${req.protocol}://${host}/`))
     && req.get("x-toonflow-workspace") === "1" && req.get("x-toonflow-local-client") !== "0"
     && !isMobileLinkRequest(req) && !res.locals.multiTenantWeb;
-  chatAccess.run(Boolean(allowed), next);
+  if (!allowed) return next();
+  localRequest.run({ canGenerate: req.method === "POST" }, next);
 };
 
 export function assertOrcaAccess() {
-  if (!chatAccess.getStore() || multiTenantEnabled()) {
+  if (!localRequest.getStore()?.canGenerate || multiTenantEnabled()) {
     throw Object.assign(new Error("请在本机 Toonflow 的独立模式中使用 Orca Claude"), { status: 403 });
   }
 }
 
+async function requestHost(path: string, init: RequestInit) {
+  const keyPath = process.env.TOONFLOW_ORCA_KEY_FILE;
+  const key = keyPath && (await readFile(keyPath, "utf8").catch(() => "")).trim();
+  if (!key || !/^[a-f0-9]{64}$/.test(key)) throw new Error(unavailable);
+  const host = process.env.TOONFLOW_ORCA_HOST === "host.docker.internal" ? "host.docker.internal" : "127.0.0.1";
+  const headers = new Headers(init.headers);
+  headers.set("authorization", `Bearer ${key}`);
+  const response = await fetch(`http://${host}:${orcaPort}${path}`, { ...init, headers, redirect: "error" }).catch(() => { throw new Error(unavailable); });
+  if (!response.ok || !response.body) { await response.body?.cancel(); throw new Error(unavailable); }
+  return response;
+}
+
+async function readCatalog() {
+  const response = await requestHost(orcaModelsPath, { signal: AbortSignal.timeout(12000) });
+  const models = orcaModelList.parse(await response.json());
+  const base = orcaClaudeProvider.models[0]!;
+  return { ...orcaClaudeProvider, models: [base, ...models.filter(model => model.id !== base.id).map(model => ({ ...base, ...model }))] };
+}
+
+export function getOrcaClaudeProvider(required = false) {
+  const request = localRequest.getStore();
+  if (!request || multiTenantEnabled()) return Promise.resolve(orcaClaudeProvider);
+  // 旧版或离线辅助进程继续提供原有的默认模型；同一请求中的设置和模型选择器共用目录。
+  const catalog = request.catalog ??= readCatalog();
+  return required ? catalog : catalog.catch(() => orcaClaudeProvider);
+}
+
+export async function withOrcaClaudeModels(providers: unknown) {
+  if (!Array.isArray(providers) || !providers.some(isOrcaClaudeProvider)) return providers;
+  const { models } = await getOrcaClaudeProvider();
+  return providers.map(item => isOrcaClaudeProvider(item) ? { ...item, models } : item);
+}
+
 type Reference = { dataType: string; value: string };
-function chatBody(context: Context, references: Reference[]) {
+function chatBody(modelId: string, context: Context, references: Reference[]) {
   const messages = context.messages.map(message => {
     if (typeof message.content === "string") return { role: message.role, text: message.content };
     const text = message.content.flatMap(part => {
@@ -43,7 +78,7 @@ function chatBody(context: Context, references: Reference[]) {
     if (reference.dataType !== "STRING") throw new Error("Orca Claude 当前仅支持文本参考");
     user.text += `\n${reference.value}`;
   }
-  const body = JSON.stringify({ system: context.systemPrompt ?? "", messages });
+  const body = JSON.stringify({ modelId: modelId === "default" ? undefined : modelId, system: context.systemPrompt ?? "", messages });
   if (Buffer.byteLength(body) > maxOrcaBytes) throw new Error("对话过长，请压缩内容后重试");
   return body;
 }
@@ -61,19 +96,11 @@ export function streamOrcaClaude(model: Model<Api>, context: Context, options?: 
     try {
       assertOrcaAccess();
       signal.throwIfAborted();
-      const body = chatBody(context, references);
-      const keyPath = process.env.TOONFLOW_ORCA_KEY_FILE;
-      const key = keyPath && (await readFile(keyPath, "utf8").catch(() => "")).trim();
-      if (!key || !/^[a-f0-9]{64}$/.test(key)) throw new Error(unavailable);
-      const host = process.env.TOONFLOW_ORCA_HOST === "host.docker.internal" ? "host.docker.internal" : "127.0.0.1";
-      const response = await fetch(`http://${host}:${orcaPort}${orcaTextPath}`, {
-        method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-        body, signal, redirect: "error",
-      }).catch(() => { throw new Error(unavailable); });
-      if (!response.ok || !response.body) { await response.body?.cancel(); throw new Error(unavailable); }
+      const body = chatBody(model.id, context, references);
+      const response = await requestHost(orcaTextPath, { method: "POST", headers: { "content-type": "application/json" }, body, signal });
       stream.push({ type: "start", partial: message });
       let pending = "";
-      for await (const chunk of response.body.pipeThrough(new TextDecoderStream())) {
+      for await (const chunk of response.body!.pipeThrough(new TextDecoderStream())) {
         pending += chunk;
         let end: number;
         while ((end = pending.indexOf("\n")) !== -1) {

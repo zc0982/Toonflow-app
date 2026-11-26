@@ -7,6 +7,7 @@ import { maxSystemPromptLength } from "@/agent/runtime/prompt";
 import { t } from "@/lib/i18n";
 import { accountProviderSchema, providerSchema } from "@/utils/ai";
 import { orcaClaudeProvider } from "@/lib/orcaClaude";
+import { withOrcaClaudeModels } from "@/utils/ai/orcaClaude";
 import { nodeToolPermissionsSchema } from "@toonflow/tool-canvas/runtime";
 
 const router = Router();
@@ -67,7 +68,7 @@ export default router.put("/", validateFields({ expectedRevision: z.number().int
     if (network) u.network.configureNetwork(network, undefined, commit);
     else commit();
     await u.mcpRuntime.reloadMcpRuntime();
-    return { customProviders: settings.customProviders ?? [], mediaProviderConfigs: settings.mediaProviderConfigs ?? {}, toonflowProvider: settings.toonflowProvider ?? null,
+    return { customProviders: await withOrcaClaudeModels(settings.customProviders ?? []), mediaProviderConfigs: settings.mediaProviderConfigs ?? {}, toonflowProvider: settings.toonflowProvider ?? null,
       aiModels: await u.ai.listAiModels(), nodeMenu: u.conf.get("settings.general.nodeMenu") ?? null, multiTenantEnabled: u.multiTenant.isEnabled() };
   });
   saveQueue = saving.then(() => {}, () => {});

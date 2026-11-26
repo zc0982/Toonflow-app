@@ -54,11 +54,11 @@ export const accountProviderSchema = providerSchema.extend({
   icon: z.string().optional(), version: z.string().optional(),
 });
 
-// 平台供应商继续使用 HTTP 协议校验；本机供应商只采用随应用发布的模型目录。
+// 平台供应商继续使用 HTTP 协议校验；本机供应商只采用应用和本机 Claude 返回的目录。
 type LocalTextProvider = Omit<z.infer<typeof providerSchema>, "protocol"> & { protocol: typeof orcaClaudeProvider.protocol };
 export const localOrcaConfiguration: LocalTextProvider & { id: string; label: string } = orcaClaudeProvider;
-export function parseTextProvider(value: unknown) {
-  if (typeof value === "object" && value && "id" in value && isOrcaClaudeProvider(value)) return localOrcaConfiguration;
+export function parseTextProvider(value: unknown, localProvider = localOrcaConfiguration) {
+  if (typeof value === "object" && value && "id" in value && isOrcaClaudeProvider(value)) return localProvider;
   return providerSchema.extend({ id: z.string().min(1), label: z.string() }).safeParse(value).data;
 }
 

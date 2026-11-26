@@ -3,6 +3,7 @@ import u from "@/utils";
 import { validateFields } from "@/lib/middleware";
 import { success } from "@/lib/responseFormat";
 import { orcaClaudeProvider } from "@/lib/orcaClaude";
+import { getOrcaClaudeProvider } from "@/utils/ai/orcaClaude";
 
 const inputSchema = u.builtinProvider.sourceSchema;
 
@@ -13,8 +14,9 @@ export default Router().get("/", validateFields(inputSchema.shape, "query"), asy
   res.set("Cache-Control", "no-store");
   if (kind === "language" && id === orcaClaudeProvider.id) {
     // 仍在运行的旧页面要求非空模块源码。用同一份公开定义生成源码，保持模型目录一致。
-    const source = `export default ${JSON.stringify(orcaClaudeProvider, null, 2)};\n`;
-    res.json(success({ source, provider: orcaClaudeProvider }));
+    const provider = await getOrcaClaudeProvider();
+    const source = `export default ${JSON.stringify(provider, null, 2)};\n`;
+    res.json(success({ source, provider }));
     return;
   }
   const abort = () => controller.abort();
