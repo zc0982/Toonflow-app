@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "packages/nodes/trumanMap/src/performanceTimeline.vue"
+        ],
+        "createdAt": "2026-11-26T05:58:35.341Z",
+        "reason": "Codex 核对：cutBlock 左缘按 segment.start 定位，2px 白线标记时间轴上的切镜点；选中态另由外环表示。"
+      }
+    ]
+  }
+}
